@@ -35,6 +35,14 @@ if ($err === '' && isset($_POST['schedule'])) {
         $cfg['schedule'] = $v;
     }
 }
+if ($err === '' && isset($_POST['alerting'])) {
+    $v = (string)$_POST['alerting'];
+    if ($v !== 'yes' && $v !== 'no') {
+        $err = 'check';
+    } else {
+        $cfg['alerting'] = $v;
+    }
+}
 if ($err === '' && isset($_POST['ifaces_present'])) {
     $names = [];
     $posted = isset($_POST['iface']) && is_array($_POST['iface']) ? $_POST['iface'] : [];
@@ -55,7 +63,13 @@ if ($err === '' && !vncbind_save_cfg($cfg)) {
     $err = 'save';
 }
 if ($err === '') {
-    vncbind_apply_schedule($cfg['schedule']);
+    if ($cfg['alerting'] !== 'yes') {
+        @unlink(VNCBIND_ALERTS);
+    }
+    vncbind_apply_schedule($cfg);
+    if (isset($_POST['alerting']) && $cfg['alerting'] === 'yes') {
+        vncbind_alert();
+    }
 }
 
 $back = '/Settings/Utilities/VncBind';

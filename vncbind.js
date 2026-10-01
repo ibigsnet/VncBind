@@ -3,6 +3,7 @@
   var STATUS = '/plugins/VncBind/include/vncbind-status.php';
   var SAVE = '/plugins/VncBind/include/vncbind-save.php';
   var REWRITE = '/plugins/VncBind/include/vncbind-rewrite.php';
+  var ALERT = '/plugins/VncBind/include/vncbind-alert.php';
   var asking = false;
   var queue = [];
 
@@ -266,6 +267,7 @@
               var userError = opts.error;
               opts.success = function (data, textStatus, jqXHR) {
                 var finish = function (out) {
+                  post(ALERT, { csrf_token: csrf() }, function () {});
                   try {
                     if (typeof userSuccess === 'function') userSuccess.call(jqXHR, out, textStatus, jqXHR);
                   } finally {

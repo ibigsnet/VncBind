@@ -2,6 +2,7 @@
 const VNCBIND_CFG = '/boot/config/plugins/VncBind';
 const VNCBIND_FILE = '/boot/config/plugins/VncBind/vncbind.json';
 const VNCBIND_SUGGEST = '/boot/config/plugins/VncBind/suggestions.json';
+const VNCBIND_ALERTS = '/boot/config/plugins/VncBind/alerts.json';
 const VNCBIND_EXTRA = '/boot/config/network-extra.cfg';
 const VNCBIND_CRON = '/etc/cron.d/vncbind';
 const VNCBIND_WALK = '/usr/local/emhttp/plugins/VncBind/scripts/vncbind-walk';
@@ -51,6 +52,7 @@ function vncbind_defaults(): array {
         'interjection' => 'yes',
         'ignore_interface_extra' => 'no',
         'schedule' => 'off',
+        'alerting' => 'yes',
         'interfaces' => [],
     ];
 }
@@ -79,6 +81,7 @@ function vncbind_load_cfg(): array {
     $cfg['ignore_interface_extra'] = $yn($j['ignore_interface_extra'] ?? '', 'no');
     $sched = (string)($j['schedule'] ?? 'off');
     $cfg['schedule'] = in_array($sched, ['off', 'daily', 'weekly'], true) ? $sched : 'off';
+    $cfg['alerting'] = $yn($j['alerting'] ?? '', 'yes');
     $names = [];
     foreach ((array)($j['interfaces'] ?? []) as $name) {
         $name = (string)$name;
@@ -248,21 +251,51 @@ function vncbind_rewrite_xml(string $xml, string $addr): string {
     return is_string($out) ? $out : $xml;
 }
 
-function vncbind_xml_open_vnc(string $xml): bool {
+function vncbind_graphics_blocks(string $xml): array {
     if (!preg_match_all('/<graphics\b[^>]*\btype=[\'"]vnc[\'"][^>]*>.*?<\/graphics>/si', $xml, $blocks)) {
+        return [];
+    }
+    return $blocks[0];
+}
+
+function vncbind_graphics_effective(string $block): string {
+    $listen = '';
+    if (preg_match("/\\blisten=['\"]([^'\"]*)['\"]/", $block, $m)) {
+        $listen = $m[1];
+    }
+    if (preg_match("/<listen\b[^>]*\\baddress=['\"]([^'\"]*)['\"]/i", $block, $m)) {
+        return $m[1];
+    }
+    return $listen;
+}
+
+function vncbind_graphics_has_passwd(string $block): bool {
+    if (!preg_match('/<graphics\b([^>]*)>/i', $block, $open)) {
         return false;
     }
-    foreach ($blocks[0] as $block) {
-        $listen = '';
-        if (preg_match("/\\blisten=['\"]([^'\"]*)['\"]/", $block, $m)) {
-            $listen = $m[1];
+    if (!preg_match("/\\bpasswd\\s*=\\s*(['\"])(.*?)\\1/s", $open[1], $m)) {
+        return false;
+    }
+    return trim(html_entity_decode($m[2], ENT_QUOTES | ENT_XML1, 'UTF-8')) !== '';
+}
+
+function vncbind_xml_vnc_severity(string $xml): string {
+    $worst = 'ok';
+    foreach (vncbind_graphics_blocks($xml) as $block) {
+        if (!vncbind_is_wildcard(vncbind_graphics_effective($block))) {
+            continue;
         }
-        $child = '';
-        if (preg_match("/<listen\b[^>]*\\baddress=['\"]([^'\"]*)['\"]/i", $block, $m)) {
-            $child = $m[1];
+        if (!vncbind_graphics_has_passwd($block)) {
+            return 'critical';
         }
-        $effective = $child !== '' ? $child : $listen;
-        if (vncbind_is_wildcard($effective)) {
+        $worst = 'warning';
+    }
+    return $worst;
+}
+
+function vncbind_xml_open_vnc(string $xml): bool {
+    foreach (vncbind_graphics_blocks($xml) as $block) {
+        if (vncbind_is_wildcard(vncbind_graphics_effective($block))) {
             return true;
         }
     }
@@ -271,10 +304,11 @@ function vncbind_xml_open_vnc(string $xml): bool {
 
 function vncbind_xml_vnc_listen(string $xml): array {
     $found = [];
-    if (!preg_match_all('/<graphics\b[^>]*\btype=[\'"]vnc[\'"][^>]*>.*?<\/graphics>/si', $xml, $blocks)) {
+    $blocks = vncbind_graphics_blocks($xml);
+    if (!$blocks) {
         return $found;
     }
-    foreach ($blocks[0] as $block) {
+    foreach ($blocks as $block) {
         if (preg_match("/<listen\b[^>]*\\baddress=['\"]([^'\"]*)['\"]/i", $block, $m)) {
             $found[] = $m[1];
         } elseif (preg_match("/\\blisten=['\"]([^'\"]*)['\"]/", $block, $m)) {
@@ -376,13 +410,219 @@ function vncbind_suggestions(): array {
     return is_array($j) ? $j : [];
 }
 
-function vncbind_apply_schedule(string $schedule): void {
-    if ($schedule === 'off' || !is_file(VNCBIND_WALK)) {
+function vncbind_apply_schedule(?array $cfg = null): void {
+    if ($cfg === null) {
+        $cfg = vncbind_load_cfg();
+    }
+    if (!is_file(VNCBIND_WALK)) {
         @unlink(VNCBIND_CRON);
         return;
     }
-    $when = $schedule === 'weekly' ? '15 3 * * 0' : '15 3 * * *';
-    $line = $when . ' root ' . VNCBIND_WALK . "\n";
-    @file_put_contents(VNCBIND_CRON, $line);
+    $lines = [];
+    $schedule = (string)($cfg['schedule'] ?? 'off');
+    if ($schedule === 'daily' || $schedule === 'weekly') {
+        $when = $schedule === 'weekly' ? '15 3 * * 0' : '15 3 * * *';
+        $lines[] = $when . ' root ' . VNCBIND_WALK;
+    }
+    if (($cfg['alerting'] ?? 'no') === 'yes') {
+        $lines[] = '*/5 * * * * root ' . VNCBIND_WALK . ' alert';
+    }
+    if (!$lines) {
+        @unlink(VNCBIND_CRON);
+        return;
+    }
+    @file_put_contents(VNCBIND_CRON, implode("\n", $lines) . "\n");
     @chmod(VNCBIND_CRON, 0644);
+}
+
+function vncbind_ipv4_in(string $addr, string $net, int $bits): bool {
+    $ip = @inet_pton($addr);
+    $nw = @inet_pton($net);
+    if (!is_string($ip) || !is_string($nw) || strlen($ip) !== 4 || strlen($nw) !== 4 || $bits < 0 || $bits > 32) {
+        return false;
+    }
+    $ipn = unpack('N', $ip)[1];
+    $nwn = unpack('N', $nw)[1];
+    if ($bits === 0) {
+        return true;
+    }
+    $host = 32 - $bits;
+    $mask = $host === 0 ? 0xFFFFFFFF : ((0xFFFFFFFF ^ ((1 << $host) - 1)) & 0xFFFFFFFF);
+    return ($ipn & $mask) === ($nwn & $mask);
+}
+
+function vncbind_addr_is_public(string $addr): bool {
+    if (!vncbind_valid_addr($addr)) {
+        return false;
+    }
+    if (filter_var($addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        foreach ([
+            ['0.0.0.0', 8],
+            ['10.0.0.0', 8],
+            ['127.0.0.0', 8],
+            ['100.64.0.0', 10],
+            ['169.254.0.0', 16],
+            ['172.16.0.0', 12],
+            ['192.168.0.0', 16],
+            ['224.0.0.0', 3],
+        ] as [$net, $bits]) {
+            if (vncbind_ipv4_in($addr, $net, $bits)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    $bin = @inet_pton($addr);
+    if (!is_string($bin) || strlen($bin) !== 16) {
+        return false;
+    }
+    $b = array_values(unpack('C16', $bin));
+    $mapped = true;
+    for ($i = 0; $i < 10; $i++) {
+        if ($b[$i] !== 0) {
+            $mapped = false;
+            break;
+        }
+    }
+    if ($mapped && $b[10] === 0xff && $b[11] === 0xff) {
+        return vncbind_addr_is_public(sprintf('%d.%d.%d.%d', $b[12], $b[13], $b[14], $b[15]));
+    }
+    if ($bin === inet_pton('::') || $bin === inet_pton('::1')) {
+        return false;
+    }
+    if ($b[0] === 0xfe && ($b[1] & 0xc0) === 0x80) {
+        return false;
+    }
+    if (($b[0] & 0xfe) === 0xfc) {
+        return false;
+    }
+    if ($b[0] === 0xff) {
+        return false;
+    }
+    return true;
+}
+
+function vncbind_has_public_addr(): bool {
+    foreach (vncbind_host_addrs() as $row) {
+        if (preg_match('/^tailscale/i', $row['name'])) {
+            continue;
+        }
+        if (vncbind_addr_is_public($row['addr'])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function vncbind_domain_live(string $name): bool {
+    if (!vncbind_valid_domain($name)) {
+        return false;
+    }
+    $out = [];
+    $rc = 0;
+    @exec('virsh domstate ' . escapeshellarg($name) . ' 2>/dev/null', $out, $rc);
+    if ($rc !== 0) {
+        return false;
+    }
+    $state = strtolower(trim(implode(' ', $out)));
+    return $state === 'running' || $state === 'paused' || $state === 'pmsuspended';
+}
+
+function vncbind_alert_state(): array {
+    if (!is_file(VNCBIND_ALERTS)) {
+        return [];
+    }
+    $raw = @file_get_contents(VNCBIND_ALERTS);
+    $j = is_string($raw) ? json_decode($raw, true) : null;
+    return is_array($j) ? $j : [];
+}
+
+function vncbind_alert_save(array $state): void {
+    vncbind_ensure_cfg();
+    ksort($state, SORT_NATURAL | SORT_FLAG_CASE);
+    $json = json_encode($state, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    if (!is_string($json)) {
+        return;
+    }
+    $tmp = VNCBIND_ALERTS . '.tmp';
+    if (@file_put_contents($tmp, $json . "\n") === false) {
+        return;
+    }
+    @chmod($tmp, 0600);
+    @rename($tmp, VNCBIND_ALERTS);
+}
+
+function vncbind_notify(string $subject, string $desc, string $importance): void {
+    $notify = '/usr/local/emhttp/webGui/scripts/notify';
+    if (!is_file($notify)) {
+        return;
+    }
+    $cmd = $notify
+        . ' -e ' . escapeshellarg('VNC Bind')
+        . ' -s ' . escapeshellarg($subject)
+        . ' -d ' . escapeshellarg($desc)
+        . ' -i ' . escapeshellarg($importance)
+        . ' -l ' . escapeshellarg('/Settings/Utilities/VncBind');
+    @exec($cmd);
+}
+
+function vncbind_alert(): void {
+    $cfg = vncbind_load_cfg();
+    if ($cfg['alerting'] !== 'yes') {
+        return;
+    }
+    $want = [];
+    if (vncbind_has_public_addr()) {
+        foreach (vncbind_domains() as $name) {
+            $hits = [];
+            $saved = vncbind_dumpxml($name, true);
+            $savedSev = $saved === '' ? 'ok' : vncbind_xml_vnc_severity($saved);
+            if ($savedSev === 'critical' || $savedSev === 'warning') {
+                $hits['saved'] = $savedSev;
+            }
+            if (vncbind_domain_live($name)) {
+                $live = vncbind_dumpxml($name, false);
+                $liveSev = $live === '' ? 'ok' : vncbind_xml_vnc_severity($live);
+                if ($liveSev === 'critical' || $liveSev === 'warning') {
+                    $hits['running'] = $liveSev;
+                }
+            }
+            if (!$hits) {
+                continue;
+            }
+            $sev = in_array('critical', $hits, true) ? 'critical' : 'warning';
+            if (isset($hits['saved'], $hits['running'])) {
+                $where = 'Saved and running';
+            } elseif (isset($hits['running'])) {
+                $where = 'Running';
+            } else {
+                $where = 'Saved';
+            }
+            $want[$name] = $sev . '|' . $where;
+        }
+    }
+    $prev = vncbind_alert_state();
+    foreach ($want as $name => $token) {
+        if (($prev[$name] ?? '') === $token) {
+            continue;
+        }
+        [$sev] = explode('|', $token, 2);
+        $hits = [];
+        $savedXml = vncbind_dumpxml($name, true);
+        $savedSev = $savedXml === '' ? 'ok' : vncbind_xml_vnc_severity($savedXml);
+        if ($savedSev === 'critical' || $savedSev === 'warning') {
+            $hits[] = 'Saved ' . ($savedSev === 'critical' ? 'has no VNC password' : 'has a VNC password');
+        }
+        if (vncbind_domain_live($name)) {
+            $liveXml = vncbind_dumpxml($name, false);
+            $liveSev = $liveXml === '' ? 'ok' : vncbind_xml_vnc_severity($liveXml);
+            if ($liveSev === 'critical' || $liveSev === 'warning') {
+                $hits[] = 'Running ' . ($liveSev === 'critical' ? 'has no VNC password' : 'has a VNC password');
+            }
+        }
+        $subject = $name . ' VNC listens on every interface';
+        $desc = ($hits ? implode('. ', $hits) . '. ' : '') . 'The listen address is every interface, and this host has a public address.';
+        vncbind_notify($subject, $desc, $sev === 'critical' ? 'alert' : 'warning');
+    }
+    vncbind_alert_save($want);
 }

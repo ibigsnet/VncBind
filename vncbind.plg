@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "VncBind">
 <!ENTITY author "RifleJock">
-<!ENTITY version "2026.10.01aa">
+<!ENTITY version "2026.10.01ab">
 <!ENTITY launch "Settings/Utilities/VncBind">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
 <!ENTITY github "ibigsnet/VncBind">
@@ -24,6 +24,9 @@
 
 <CHANGES>
 ###&version;
+- Notify when this host has a public address and a VM VNC listen address is every interface.
+
+###2026.10.01aa
 - Ask which interface a VM VNC listen address uses before the template is saved.
 
 ### Older releases
@@ -42,6 +45,12 @@ echo "VncBind: ready."
 
 <!-- raw-files begin -->
 <!-- raw-files end -->
+
+<FILE Run="/bin/bash">
+<INLINE><![CDATA[
+php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_apply_schedule(); vncbind_alert();' || true
+]]></INLINE>
+</FILE>
 
 <FILE Run="/bin/bash" Method="remove">
 <INLINE><![CDATA[
