@@ -1,0 +1,57 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name "VncBind">
+<!ENTITY author "RifleJock">
+<!ENTITY version "2026.10.01aa">
+<!ENTITY launch "Settings/Utilities/VncBind">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
+<!ENTITY github "ibigsnet/VncBind">
+<!ENTITY raw "https://raw.githubusercontent.com/ibigsnet/VncBind/testing">
+<!ENTITY plugdir "/usr/local/emhttp/plugins/VncBind">
+<!ENTITY configdir "/boot/config/plugins/VncBind">
+]>
+
+<PLUGIN name="&name;"
+  author="&author;"
+  version="&version;"
+  launch="&launch;"
+  pluginURL="&pluginURL;"
+  icon="icon-virtualization"
+  min="6.12.0"
+  support="https://github.com/ibigsnet/VncBind/issues"
+  project="https://github.com/&github;"
+  readme="https://raw.githubusercontent.com/&github;/testing/README.md">
+
+<CHANGES>
+###&version;
+- Ask which interface a VM VNC listen address uses before the template is saved.
+
+### Older releases
+- Full changelog: https://github.com/ibigsnet/VncBind/blob/main/CHANGELOG.md
+</CHANGES>
+
+<FILE Run="/bin/bash">
+<INLINE><![CDATA[
+echo "VncBind: preparing..."
+mkdir -p /boot/config/plugins/VncBind
+chmod 700 /boot/config/plugins/VncBind 2>/dev/null || true
+rm -rf /usr/local/emhttp/plugins/vncbind 2>/dev/null || true
+echo "VncBind: ready."
+]]></INLINE>
+</FILE>
+
+<!-- raw-files begin -->
+<!-- raw-files end -->
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE><![CDATA[
+#!/bin/bash
+set +e
+echo "VncBind: removing..."
+removepkg VncBind-* >/dev/null 2>&1
+rm -rf /usr/local/emhttp/plugins/VncBind /usr/local/emhttp/plugins/vncbind
+rm -f /etc/cron.d/vncbind
+echo "VncBind: removed."
+exit 0
+]]></INLINE>
+</FILE>

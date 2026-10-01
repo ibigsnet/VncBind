@@ -1,0 +1,47 @@
+.vncbind-err {
+  color: #c44;
+}
+
+.vncbind-ifaces label {
+  display: block;
+}
+
+.vncbind-suggest {
+  margin: 0 0 1em;
+}
+
+#vncbind-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#vncbind-ask[hidden] {
+  display: none;
+}
+
+.vncbind-ask-box {
+  background: Canvas;
+  color: CanvasText;
+  border: 1px solid ButtonBorder;
+  padding: 16px 18px;
+  min-width: 280px;
+  max-width: 460px;
+}
+
+.vncbind-ask-list label {
+  display: block;
+  margin: 6px 0;
+}
+
+.vncbind-ask-actions {
+  margin-top: 12px;
+}
+
+.vncbind-ask-actions button {
+  margin-right: 8px;
+}

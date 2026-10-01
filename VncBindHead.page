@@ -1,0 +1,5 @@
+Menu="Buttons:196"
+Link="vncbind-head"
+---
+<link type="text/css" rel="stylesheet" href="<?php autov('/plugins/VncBind/vncbind.css') ?>">
+<script src="<?php autov('/plugins/VncBind/vncbind.js') ?>"></script>

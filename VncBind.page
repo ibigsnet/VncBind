@@ -1,0 +1,156 @@
+Menu="Utilities"
+Title="VNC Bind"
+Icon="icon-virtualization"
+Markdown="false"
+---
+<?php
+require_once '/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php';
+$cfg = vncbind_load_cfg();
+$csrf = vncbind_csrf_expected();
+$saved = array_fill_keys($cfg['interfaces'], true);
+$by = [];
+foreach (vncbind_host_addrs() as $row) {
+    $by[$row['name']][] = $row['addr'];
+}
+foreach ($cfg['interfaces'] as $name) {
+    if (!isset($by[$name])) {
+        $by[$name] = [];
+    }
+}
+ksort($by, SORT_NATURAL | SORT_FLAG_CASE);
+$choices = vncbind_choices($cfg);
+$sug = vncbind_suggestions();
+$checked = isset($sug['checked']) ? (int)$sug['checked'] : 0;
+$rows = isset($sug['rows']) && is_array($sug['rows']) ? $sug['rows'] : [];
+$err = (string)($_GET['err'] ?? '');
+$err_text = '';
+if ($err === 'check') {
+    $err_text = 'Check the selections. Nothing was saved.';
+} elseif ($err === 'save') {
+    $err_text = 'Could not write the config file.';
+}
+?>
+<?php if ($err_text !== ''): ?>
+<p class="vncbind-err"><?= htmlspecialchars($err_text) ?></p>
+<?php endif; ?>
+<?php if ((string)($_GET['checked'] ?? '') === '1'): ?>
+<p>Check finished.</p>
+<?php endif; ?>
+<form method="post" action="/plugins/VncBind/include/vncbind-save.php" autocomplete="off">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+<input type="hidden" name="ifaces_present" value="1">
+<dl>
+  <dt>Interjection:</dt>
+  <dd>
+    <select name="interjection">
+      <?= mk_option($cfg['interjection'], 'yes', 'Enable') ?>
+      <?= mk_option($cfg['interjection'], 'no', 'Disable') ?>
+    </select>
+  </dd>
+</dl>
+<blockquote class="inline_help">
+  Enable asks which address to use before a VM with VNC is created or updated. Disable leaves the save alone.
+</blockquote>
+<dl>
+  <dt>Ignore Interface Extra:</dt>
+  <dd>
+    <select name="ignore_interface_extra">
+      <?= mk_option($cfg['ignore_interface_extra'], 'no', 'No') ?>
+      <?= mk_option($cfg['ignore_interface_extra'], 'yes', 'Yes') ?>
+    </select>
+  </dd>
+</dl>
+<blockquote class="inline_help">
+  No follows Interface Extra. Excluded interfaces are not offered. Included interfaces are added to br0, bond0, eth0, and wlan0. Yes uses only the checked interfaces.
+</blockquote>
+<dl>
+  <dt>Listen interfaces:</dt>
+  <dd>
+<?php if (!$by): ?>
+    No interface address is available.
+<?php else: ?>
+    <div class="vncbind-ifaces">
+<?php foreach ($by as $name => $addrs): ?>
+      <label><input type="checkbox" name="iface[]" value="<?= htmlspecialchars($name) ?>"<?= isset($saved[$name]) ? ' checked' : '' ?>> <?= htmlspecialchars($name) ?><?php if ($addrs): ?> <?= htmlspecialchars(implode(', ', $addrs)) ?><?php endif; ?></label>
+<?php endforeach; ?>
+    </div>
+<?php endif; ?>
+  </dd>
+</dl>
+<blockquote class="inline_help">
+  Checked interfaces may be offered. Leave all unchecked to use the Interface Extra set. One address is written.
+</blockquote>
+<dl>
+  <dt>Offered:</dt>
+  <dd>
+<?php if (!$choices): ?>
+    None
+<?php else: ?>
+<?php foreach ($choices as $row): ?>
+    <div><?= htmlspecialchars($row['name'] . ' ' . $row['addr']) ?></div>
+<?php endforeach; ?>
+<?php endif; ?>
+  </dd>
+</dl>
+<blockquote class="inline_help">
+  These are the addresses the question can use. Apply updates this list.
+</blockquote>
+<dl>
+  <dt>Template check:</dt>
+  <dd>
+    <select name="schedule">
+      <?= mk_option($cfg['schedule'], 'off', 'Off') ?>
+      <?= mk_option($cfg['schedule'], 'daily', 'Daily') ?>
+      <?= mk_option($cfg['schedule'], 'weekly', 'Weekly') ?>
+    </select>
+  </dd>
+</dl>
+<blockquote class="inline_help">
+  Daily and Weekly list VMs whose saved or running VNC listen address is every interface. The list does not edit them.
+</blockquote>
+<dl>
+  <dt>&nbsp;</dt>
+  <dd>
+    <input type="submit" value="Apply">
+    <input type="button" value="Done" onclick="done()">
+  </dd>
+</dl>
+</form>
+<form method="post" action="/plugins/VncBind/include/vncbind-walk.php" autocomplete="off">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+<dl>
+  <dt>&nbsp;</dt>
+  <dd><input type="submit" value="Check now"></dd>
+</dl>
+</form>
+<?php if ($checked): ?>
+<dl>
+  <dt>Last check:</dt>
+  <dd><?= htmlspecialchars(date('Y-m-d H:i', $checked)) ?></dd>
+</dl>
+<?php if (!$rows): ?>
+<blockquote class="inline_help">
+  No VNC listen address is open on every interface.
+</blockquote>
+<?php else: ?>
+<table class="vncbind-suggest">
+  <thead>
+    <tr><th>VM</th><th>Where</th><th>Listen</th></tr>
+  </thead>
+  <tbody>
+<?php foreach ($rows as $row):
+    if (!is_array($row)) continue;
+    $where = (string)($row['where'] ?? '');
+    $where_label = $where === 'running' ? 'Running' : 'Saved';
+    $listen = isset($row['listen']) && is_array($row['listen']) ? implode(', ', array_map('strval', $row['listen'])) : '';
+?>
+    <tr>
+      <td><?= htmlspecialchars((string)($row['domain'] ?? '')) ?></td>
+      <td><?= htmlspecialchars($where_label) ?></td>
+      <td><?= htmlspecialchars($listen) ?></td>
+    </tr>
+<?php endforeach; ?>
+  </tbody>
+</table>
+<?php endif; ?>
+<?php endif; ?>

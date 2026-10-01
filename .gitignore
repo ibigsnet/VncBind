@@ -1,0 +1,6 @@
+*.local.md
+NOTES.local.md
+.private/
+archive/*.txz
+dist/
+scripts/pack-txz.sh

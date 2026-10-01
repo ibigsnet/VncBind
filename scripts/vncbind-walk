@@ -1,0 +1,3 @@
+#!/bin/bash
+php /usr/local/emhttp/plugins/VncBind/include/vncbind-walk.php
+exit 0
