@@ -502,16 +502,33 @@ function vncbind_addr_is_public(string $addr): bool {
     return true;
 }
 
-function vncbind_has_public_addr(): bool {
+function vncbind_public_addrs(): array {
+    $rows = [];
     foreach (vncbind_host_addrs() as $row) {
         if (preg_match('/^tailscale/i', $row['name'])) {
             continue;
         }
         if (vncbind_addr_is_public($row['addr'])) {
-            return true;
+            $rows[] = $row;
         }
     }
-    return false;
+    return $rows;
+}
+
+function vncbind_has_public_addr(): bool {
+    return vncbind_public_addrs() !== [];
+}
+
+function vncbind_internet_addrs(): array {
+    $by = [];
+    foreach (vncbind_public_addrs() as $row) {
+        $addr = $row['addr'];
+        $shim = (bool)preg_match('/^shim-/i', $row['name']);
+        if (!isset($by[$addr]) || (!$shim && preg_match('/^shim-/i', $by[$addr]['name']))) {
+            $by[$addr] = $row;
+        }
+    }
+    return array_values($by);
 }
 
 function vncbind_domain_live(string $name): bool {
@@ -621,7 +638,7 @@ function vncbind_alert(): void {
             }
         }
         $subject = $name . ' VNC listens on every interface';
-        $desc = ($hits ? implode('. ', $hits) . '. ' : '') . 'The listen address is every interface, and this host has a public address.';
+        $desc = ($hits ? implode('. ', $hits) . '. ' : '') . 'The listen address is every interface, and this host has an internet address.';
         vncbind_notify($subject, $desc, $sev === 'critical' ? 'alert' : 'warning');
     }
     vncbind_alert_save($want);

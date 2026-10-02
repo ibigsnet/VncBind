@@ -105,14 +105,23 @@ if ($err === 'check') {
   </dd>
 </dl>
 <blockquote class="inline_help">
-  Enable notifies when this host has a public address and a VM VNC listen address is every interface. No password is an alert. A password set is a warning.
+  Enable notifies when an internet address is listed below and a VM VNC listen address is every interface. No password is an alert. A password set is a warning.
 </blockquote>
 <dl>
-  <dt>Public address:</dt>
-  <dd><?= vncbind_has_public_addr() ? 'Yes' : 'No' ?></dd>
+  <dt>Internet address:</dt>
+  <dd>
+<?php $pub = vncbind_internet_addrs(); ?>
+<?php if (!$pub): ?>
+    No
+<?php else: ?>
+<?php foreach ($pub as $row): ?>
+    <div><?= htmlspecialchars($row['name'] . ' ' . $row['addr']) ?></div>
+<?php endforeach; ?>
+<?php endif; ?>
+  </dd>
 </dl>
 <blockquote class="inline_help">
-  Tailscale, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, and private IPv6 do not count.
+  Alerts run when an address is listed here. Tailscale and private LAN addresses are left out.
 </blockquote>
 <dl>
   <dt>Template check:</dt>

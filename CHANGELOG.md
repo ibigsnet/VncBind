@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.01ad
+
+- The internet address list shows each address once. A bridge shim that repeats it is left out.
+
+## 2026.10.01ac
+
+- Settings lists the internet address alerting uses. Tailscale and private LAN addresses are left out of that list.
+
 ## 2026.10.01ab
 
 - Alerting can be enabled or disabled. The install default is Enable.
