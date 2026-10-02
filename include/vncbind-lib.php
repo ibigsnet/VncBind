@@ -3,9 +3,12 @@ const VNCBIND_CFG = '/boot/config/plugins/VncBind';
 const VNCBIND_FILE = '/boot/config/plugins/VncBind/vncbind.json';
 const VNCBIND_SUGGEST = '/boot/config/plugins/VncBind/suggestions.json';
 const VNCBIND_ALERTS = '/boot/config/plugins/VncBind/alerts.json';
+const VNCBIND_BINDS = '/boot/config/plugins/VncBind/binds.json';
 const VNCBIND_EXTRA = '/boot/config/network-extra.cfg';
 const VNCBIND_CRON = '/etc/cron.d/vncbind';
 const VNCBIND_WALK = '/usr/local/emhttp/plugins/VncBind/scripts/vncbind-walk';
+const VNCBIND_LISTEN = '/usr/local/emhttp/plugins/VncBind/include/vncbind-listen.php';
+const VNCBIND_LISTEN_PID = '/var/run/vncbind-listen.pid';
 
 function vncbind_csrf_expected(): string {
     if (!is_readable('/var/local/emhttp/var.ini')) {
@@ -50,7 +53,7 @@ function vncbind_csrf_ok(): bool {
 function vncbind_defaults(): array {
     return [
         'interjection' => 'yes',
-        'ignore_interface_extra' => 'no',
+        'use_interface_extra' => 'yes',
         'schedule' => 'off',
         'alerting' => 'yes',
         'interfaces' => [],
@@ -78,7 +81,13 @@ function vncbind_load_cfg(): array {
         return ($v === 'yes' || $v === 'no') ? $v : $fallback;
     };
     $cfg['interjection'] = $yn($j['interjection'] ?? '', 'yes');
-    $cfg['ignore_interface_extra'] = $yn($j['ignore_interface_extra'] ?? '', 'no');
+    if (isset($j['use_interface_extra'])) {
+        $cfg['use_interface_extra'] = $yn($j['use_interface_extra'], 'yes');
+    } elseif (($j['ignore_interface_extra'] ?? '') === 'yes') {
+        $cfg['use_interface_extra'] = 'no';
+    } else {
+        $cfg['use_interface_extra'] = 'yes';
+    }
     $sched = (string)($j['schedule'] ?? 'off');
     $cfg['schedule'] = in_array($sched, ['off', 'daily', 'weekly'], true) ? $sched : 'off';
     $cfg['alerting'] = $yn($j['alerting'] ?? '', 'yes');
@@ -176,7 +185,7 @@ function vncbind_host_addrs(): array {
 function vncbind_allowed_names(array $cfg): array {
     $extra = vncbind_interface_extra();
     $saved = $cfg['interfaces'];
-    if ($cfg['ignore_interface_extra'] === 'yes') {
+    if ($cfg['use_interface_extra'] !== 'yes') {
         return $saved;
     }
     $base = ['br0' => true, 'bond0' => true, 'eth0' => true, 'wlan0' => true];
@@ -191,7 +200,7 @@ function vncbind_allowed_names(array $cfg): array {
     }
     $keep = [];
     foreach ($saved as $name) {
-        if (isset($base[$name])) {
+        if (!isset($extra['exclude'][$name])) {
             $keep[] = $name;
         }
     }
@@ -220,6 +229,108 @@ function vncbind_choice_ok(array $cfg, string $addr): bool {
         }
     }
     return false;
+}
+
+function vncbind_addrs_ok(array $cfg, array $addrs): bool {
+    foreach ($addrs as $addr) {
+        if (!is_string($addr) || !vncbind_choice_ok($cfg, $addr)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function vncbind_request_addrs(): ?array {
+    if (!isset($_POST['addr'])) {
+        return [];
+    }
+    $raw = $_POST['addr'];
+    if (is_string($raw)) {
+        $raw = trim($raw) === '' ? [] : [$raw];
+    }
+    if (!is_array($raw)) {
+        return null;
+    }
+    $out = [];
+    foreach ($raw as $addr) {
+        if (!is_string($addr)) {
+            return null;
+        }
+        $addr = trim($addr);
+        if ($addr === '') {
+            continue;
+        }
+        $out[$addr] = true;
+    }
+    return array_keys($out);
+}
+
+function vncbind_console_addr(): string {
+    return '127.0.0.1';
+}
+
+function vncbind_same_addr(string $a, string $b): bool {
+    $pa = @inet_pton($a);
+    $pb = @inet_pton($b);
+    return is_string($pa) && is_string($pb) && $pa === $pb;
+}
+
+function vncbind_tcp_uri(string $addr, int $port): string {
+    if (filter_var($addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+        return 'tcp://[' . $addr . ']:' . $port;
+    }
+    return 'tcp://' . $addr . ':' . $port;
+}
+
+function vncbind_load_binds(): array {
+    if (!is_file(VNCBIND_BINDS)) {
+        return [];
+    }
+    $raw = @file_get_contents(VNCBIND_BINDS);
+    $j = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($j)) {
+        return [];
+    }
+    $out = [];
+    foreach ($j as $domain => $addrs) {
+        if (!is_string($domain) || !vncbind_valid_domain($domain) || !is_array($addrs)) {
+            continue;
+        }
+        $keep = [];
+        foreach ($addrs as $addr) {
+            $addr = trim((string)$addr);
+            if (vncbind_valid_addr($addr)) {
+                $keep[$addr] = true;
+            }
+        }
+        $out[$domain] = array_keys($keep);
+    }
+    ksort($out, SORT_NATURAL | SORT_FLAG_CASE);
+    return $out;
+}
+
+function vncbind_save_binds(array $binds): bool {
+    vncbind_ensure_cfg();
+    $json = json_encode($binds, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    if (!is_string($json)) {
+        return false;
+    }
+    $tmp = VNCBIND_BINDS . '.tmp';
+    if (@file_put_contents($tmp, $json . "\n") === false) {
+        return false;
+    }
+    @chmod($tmp, 0600);
+    return @rename($tmp, VNCBIND_BINDS);
+}
+
+function vncbind_set_domain_binds(string $domain, array $addrs): bool {
+    if (!vncbind_valid_domain($domain) || !vncbind_addrs_ok(vncbind_load_cfg(), $addrs)) {
+        return false;
+    }
+    $binds = vncbind_load_binds();
+    $binds[$domain] = array_values($addrs);
+    ksort($binds, SORT_NATURAL | SORT_FLAG_CASE);
+    return vncbind_save_binds($binds);
 }
 
 function vncbind_rewrite_xml(string $xml, string $addr): string {
@@ -344,15 +455,115 @@ function vncbind_define(string $xml): bool {
     return $rc === 0 && !str_contains((string)$err, 'error:');
 }
 
-function vncbind_redefine(string $name, string $addr): bool {
-    if (!vncbind_valid_domain($name) || !vncbind_choice_ok(vncbind_load_cfg(), $addr)) {
+function vncbind_redefine(string $name, array $addrs): bool {
+    if (!vncbind_valid_domain($name) || !vncbind_addrs_ok(vncbind_load_cfg(), $addrs)) {
+        return false;
+    }
+    if (!vncbind_set_domain_binds($name, $addrs)) {
         return false;
     }
     $xml = vncbind_dumpxml($name, true);
     if ($xml === '') {
         return false;
     }
-    return vncbind_define(vncbind_rewrite_xml($xml, $addr));
+    if (!vncbind_define(vncbind_rewrite_xml($xml, vncbind_console_addr()))) {
+        return false;
+    }
+    vncbind_listen_spawn();
+    return true;
+}
+
+function vncbind_graphics_port(string $block): int {
+    if (!preg_match('/<graphics\b([^>]*)>/i', $block, $open)) {
+        return 0;
+    }
+    if (!preg_match("/\\bport=['\"](\\d+)['\"]/", $open[1], $m)) {
+        return 0;
+    }
+    $port = (int)$m[1];
+    return ($port >= 1 && $port <= 65535) ? $port : 0;
+}
+
+function vncbind_host_has_addr(string $addr): bool {
+    if (vncbind_same_addr($addr, '127.0.0.1') || vncbind_same_addr($addr, '::1')) {
+        return true;
+    }
+    foreach (vncbind_host_addrs() as $row) {
+        if (vncbind_same_addr($row['addr'], $addr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function vncbind_listen_key(string $addr, int $port): string {
+    $bin = @inet_pton($addr);
+    $id = is_string($bin) ? bin2hex($bin) : $addr;
+    return $id . ':' . $port;
+}
+
+function vncbind_listen_plan(): array {
+    $plan = [];
+    $seen = [];
+    foreach (vncbind_load_binds() as $domain => $addrs) {
+        if (!vncbind_domain_live($domain)) {
+            continue;
+        }
+        $xml = vncbind_dumpxml($domain, false);
+        if ($xml === '') {
+            continue;
+        }
+        foreach (vncbind_graphics_blocks($xml) as $block) {
+            $dest = vncbind_graphics_effective($block);
+            $port = vncbind_graphics_port($block);
+            if ($port === 0 || !vncbind_valid_addr($dest)) {
+                continue;
+            }
+            foreach ($addrs as $addr) {
+                if (!vncbind_valid_addr($addr) || vncbind_same_addr($addr, $dest) || !vncbind_host_has_addr($addr)) {
+                    continue;
+                }
+                $key = vncbind_listen_key($addr, $port);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $plan[] = ['bind' => $addr, 'port' => $port, 'dest' => $dest];
+            }
+        }
+    }
+    return $plan;
+}
+
+function vncbind_listen_alive(): bool {
+    $pid = (int)trim((string)@file_get_contents(VNCBIND_LISTEN_PID));
+    if ($pid <= 1 || !function_exists('posix_kill') || !@posix_kill($pid, 0)) {
+        return false;
+    }
+    $cmd = @file_get_contents('/proc/' . $pid . '/cmdline');
+    return is_string($cmd) && str_contains($cmd, 'vncbind-listen.php');
+}
+
+function vncbind_listen_spawn(): void {
+    if (!is_file(VNCBIND_LISTEN) || vncbind_listen_alive()) {
+        return;
+    }
+    $php = is_executable('/usr/bin/php') ? '/usr/bin/php' : PHP_BINARY;
+    $cmd = 'setsid ' . escapeshellarg($php) . ' ' . escapeshellarg(VNCBIND_LISTEN)
+        . ' </dev/null >/dev/null 2>&1 &';
+    @exec($cmd);
+}
+
+function vncbind_listen_stop(): void {
+    if (!vncbind_listen_alive()) {
+        @unlink(VNCBIND_LISTEN_PID);
+        return;
+    }
+    $pid = (int)trim((string)@file_get_contents(VNCBIND_LISTEN_PID));
+    if ($pid > 1 && function_exists('posix_kill')) {
+        @posix_kill($pid, SIGTERM);
+    }
+    @unlink(VNCBIND_LISTEN_PID);
 }
 
 function vncbind_domains(): array {

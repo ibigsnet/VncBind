@@ -1,0 +1,2 @@
+#!/bin/bash
+php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_listen_spawn();' || true

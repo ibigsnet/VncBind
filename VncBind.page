@@ -49,22 +49,22 @@ if ($err === 'check') {
   </dd>
 </dl>
 <blockquote class="inline_help">
-  Enable asks which address to use before a VM with VNC is created or updated. Disable leaves the save alone.
+  Enable asks which addresses to open before a VM with VNC is created or updated. Disable leaves the save alone.
 </blockquote>
 <dl>
-  <dt>Ignore Interface Extra:</dt>
+  <dt>Use Interface Extra:</dt>
   <dd>
-    <select name="ignore_interface_extra">
-      <?= mk_option($cfg['ignore_interface_extra'], 'no', 'No') ?>
-      <?= mk_option($cfg['ignore_interface_extra'], 'yes', 'Yes') ?>
+    <select name="use_interface_extra">
+      <?= mk_option($cfg['use_interface_extra'], 'yes', 'Yes') ?>
+      <?= mk_option($cfg['use_interface_extra'], 'no', 'No') ?>
     </select>
   </dd>
 </dl>
 <blockquote class="inline_help">
-  No follows Interface Extra. Excluded interfaces are not offered. Included interfaces are added to br0, bond0, eth0, and wlan0. Yes uses only the checked interfaces.
+  <a href="/Settings/NetworkExtra">Interface Extra</a> lists interfaces to include and interfaces to exclude. Yes follows that list. No uses only the checked interfaces below.
 </blockquote>
 <dl>
-  <dt>Listen interfaces:</dt>
+  <dt>Allowed interfaces:</dt>
   <dd>
 <?php if (!$by): ?>
     No interface address is available.
@@ -78,7 +78,7 @@ if ($err === 'check') {
   </dd>
 </dl>
 <blockquote class="inline_help">
-  Checked interfaces may be offered. Leave all unchecked to use the Interface Extra set. One address is written.
+  Checked interfaces appear in the question. None checked offers br0, bond0, eth0, wlan0, and the Interface Extra list when Use Interface Extra is Yes. An Interface Extra exclude is dropped.
 </blockquote>
 <dl>
   <dt>Offered:</dt>
@@ -87,13 +87,13 @@ if ($err === 'check') {
     None
 <?php else: ?>
 <?php foreach ($choices as $row): ?>
-    <div><?= htmlspecialchars($row['name'] . ' ' . $row['addr']) ?></div>
+    <div><?= htmlspecialchars($row['name'] . ' ' . $row['addr'] . (vncbind_addr_is_public($row['addr']) ? ' internet' : '')) ?></div>
 <?php endforeach; ?>
 <?php endif; ?>
   </dd>
 </dl>
 <blockquote class="inline_help">
-  These are the addresses the question can use. Apply updates this list.
+  These addresses appear in the question. Each checked address is opened. An internet address stays closed unless it is checked. The console on this server uses the local address. A running VM keeps its current socket until it is restarted.
 </blockquote>
 <dl>
   <dt>Alerting:</dt>

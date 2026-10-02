@@ -19,12 +19,12 @@ if (isset($_POST['interjection'])) {
         $cfg['interjection'] = $v;
     }
 }
-if ($err === '' && isset($_POST['ignore_interface_extra'])) {
-    $v = (string)$_POST['ignore_interface_extra'];
+if ($err === '' && isset($_POST['use_interface_extra'])) {
+    $v = (string)$_POST['use_interface_extra'];
     if ($v !== 'yes' && $v !== 'no') {
         $err = 'check';
     } else {
-        $cfg['ignore_interface_extra'] = $v;
+        $cfg['use_interface_extra'] = $v;
     }
 }
 if ($err === '' && isset($_POST['schedule'])) {
@@ -67,6 +67,7 @@ if ($err === '') {
         @unlink(VNCBIND_ALERTS);
     }
     vncbind_apply_schedule($cfg);
+    vncbind_listen_spawn();
     if (isset($_POST['alerting']) && $cfg['alerting'] === 'yes') {
         vncbind_alert();
     }

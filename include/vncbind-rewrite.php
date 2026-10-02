@@ -18,20 +18,21 @@ if ($cfg['interjection'] !== 'yes') {
 }
 
 $domain = trim((string)($_POST['domain'] ?? ''));
-$addr = trim((string)($_POST['addr'] ?? ''));
+$addrs = vncbind_request_addrs();
 $xml = (string)($_POST['xml'] ?? '');
 
-if ($xml !== '') {
-    if (!vncbind_choice_ok($cfg, $addr)) {
-        http_response_code(400);
-        echo json_encode(['ok' => false]);
-        exit;
-    }
-    echo json_encode(['ok' => true, 'xml' => vncbind_rewrite_xml($xml, $addr)], JSON_UNESCAPED_SLASHES);
+if ($addrs === null || !vncbind_addrs_ok($cfg, $addrs)) {
+    http_response_code(400);
+    echo json_encode(['ok' => false]);
     exit;
 }
 
-if (!vncbind_redefine($domain, $addr)) {
+if ($xml !== '') {
+    echo json_encode(['ok' => true, 'xml' => vncbind_rewrite_xml($xml, vncbind_console_addr())], JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if (!vncbind_redefine($domain, $addrs)) {
     http_response_code(400);
     echo json_encode(['ok' => false]);
     exit;

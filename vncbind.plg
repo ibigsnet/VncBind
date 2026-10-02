@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "VncBind">
 <!ENTITY author "RifleJock">
-<!ENTITY version "2026.10.01ad">
+<!ENTITY version "2026.10.01af">
 <!ENTITY launch "Settings/Utilities/VncBind">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
 <!ENTITY github "ibigsnet/VncBind">
@@ -24,6 +24,9 @@
 
 <CHANGES>
 ###&version;
+- Open each checked VNC address. A checked interface is offered, including one outside Interface Extra.
+
+###2026.10.01ad
 - Show the internet address that alerting uses. A bridge shim that repeats it is left out.
 
 ###2026.10.01ab
@@ -49,14 +52,14 @@ echo "VncBind: ready."
 <!-- raw-files begin -->
 <FILE Name="&configdir;/VncBind-&version;-x86_64-1.txz" Run="upgradepkg --install-new --reinstall">
 <URL>https://github.com/ibigsnet/VncBind/releases/download/v&version;/VncBind-&version;-x86_64-1.txz</URL>
-<SHA256>22fba3aae62a1cdc334cc013a11357945c7ef3ef7571bad81777ffa90d796bee</SHA256>
-<MD5>8d9d26fcd56c63377968fec8b5b657ae</MD5>
+<SHA256>f1131c2f31ca437554dc78133389c7c5087d4fddcccbf2138dc549cdb88eb40c</SHA256>
+<MD5>43a285ab15389566aad387b2c0ee0915</MD5>
 </FILE>
 <!-- raw-files end -->
 
 <FILE Run="/bin/bash">
 <INLINE><![CDATA[
-php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_apply_schedule(); vncbind_alert();' || true
+php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_apply_schedule(); vncbind_listen_spawn(); vncbind_alert();' || true
 ]]></INLINE>
 </FILE>
 
@@ -65,6 +68,7 @@ php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vnc
 #!/bin/bash
 set +e
 echo "VncBind: removing..."
+php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_listen_stop();' || true
 removepkg VncBind-* >/dev/null 2>&1
 rm -rf /usr/local/emhttp/plugins/VncBind /usr/local/emhttp/plugins/vncbind
 rm -f /etc/cron.d/vncbind

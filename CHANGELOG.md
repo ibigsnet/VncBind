@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.10.01af
+
+- A checked interface is offered. Interface Extra no longer drops it for being outside the include list.
+
+## 2026.10.01ae
+
+- The VNC question is a checkbox list. Each checked address is opened. An internet address stays closed unless it is checked. The console on this server uses the local address.
+- Use Interface Extra replaces Ignore Interface Extra. Yes is the default. The help links to Interface Extra.
+
 ## 2026.10.01ad
 
 - The internet address list shows each address once. A bridge shim that repeats it is left out.

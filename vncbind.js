@@ -1,4 +1,4 @@
-/* Asks for a VNC listen address before a VM create or update is sent. */
+/* Asks which addresses VNC listens on before a VM create or update is sent. */
 (function () {
   var STATUS = '/plugins/VncBind/include/vncbind-status.php';
   var SAVE = '/plugins/VncBind/include/vncbind-save.php';
@@ -89,7 +89,12 @@
   function post(url, fields, cb) {
     var body = new URLSearchParams();
     Object.keys(fields).forEach(function (key) {
-      body.append(key, fields[key]);
+      var val = fields[key];
+      if (Array.isArray(val)) {
+        val.forEach(function (item) { body.append(key + '[]', item); });
+      } else {
+        body.append(key, val);
+      }
     });
     var x = new XMLHttpRequest();
     x.open('POST', url, true);
@@ -131,7 +136,7 @@
       '<p class="vncbind-ask-text"></p>' +
       '<div class="vncbind-ask-list"></div>' +
       '<div class="vncbind-ask-actions">' +
-      '<button type="button" class="vncbind-ask-ok">Use this address</button>' +
+      '<button type="button" class="vncbind-ask-ok">Use these addresses</button>' +
       '<button type="button" class="vncbind-ask-cancel">Cancel</button>' +
       '</div></div>';
     document.body.appendChild(root);
@@ -141,7 +146,19 @@
     return root;
   }
 
-  function ask(status, xml, done) {
+  function domainName(body, xml) {
+    var name = field(body, 'domain[name]');
+    if (name) return name;
+    var m = String(xml || '').match(/<name>([^<]*)<\/name>/);
+    return m ? m[1] : '';
+  }
+
+  function wildcard(addr) {
+    var a = String(addr || '').toLowerCase();
+    return a === '' || a === '0.0.0.0' || a === '::' || a === '::0';
+  }
+
+  function ask(status, xml, name, done) {
     var root = overlay();
     var text = root.querySelector('.vncbind-ask-text');
     var list = root.querySelector('.vncbind-ask-list');
@@ -149,43 +166,46 @@
     var cancel = root.querySelector('.vncbind-ask-cancel');
     var choices = status && Array.isArray(status.choices) ? status.choices : [];
     var have = currentListen(xml || '');
+    var saved = status && status.binds && name && Object.prototype.hasOwnProperty.call(status.binds, name)
+      ? status.binds[name] : null;
     list.textContent = '';
     text.textContent = choices.length
-      ? 'Choose the address VNC listens on.'
-      : 'No allowed interface has an address. The save was not sent.';
-    ok.hidden = choices.length === 0;
-    var matched = false;
+      ? 'VNC listens on the checked addresses. An internet address stays closed unless it is checked.'
+      : 'No other address is available. The console on this server stays available.';
+    ok.hidden = false;
     choices.forEach(function (row) {
       var label = document.createElement('label');
-      var radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = 'vncbind-addr';
-      radio.value = row.addr;
-      if (have && row.addr === have) {
-        radio.checked = true;
-        matched = true;
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.name = 'vncbind-addr';
+      box.value = row.addr;
+      if (saved) {
+        box.checked = saved.indexOf(row.addr) !== -1;
+      } else if (!wildcard(have) && have === row.addr) {
+        box.checked = true;
+      } else if (wildcard(have)) {
+        box.checked = !row.public;
       }
-      label.appendChild(radio);
-      label.appendChild(document.createTextNode(' ' + row.name + ' ' + row.addr));
+      label.appendChild(box);
+      label.appendChild(document.createTextNode(' ' + row.name + ' ' + row.addr + (row.public ? ' internet' : '')));
       list.appendChild(label);
     });
-    if (!matched) {
-      var first = list.querySelector('input');
-      if (first) first.checked = true;
-    }
-    function finish(addr) {
+    function finish(addrs) {
       document.removeEventListener('keydown', onKey);
       root.hidden = true;
       ok.onclick = null;
       cancel.onclick = null;
-      done(addr);
+      done(addrs);
     }
     function onKey(ev) {
       if (ev.key === 'Escape') finish(null);
     }
     ok.onclick = function () {
-      var picked = root.querySelector('input[name="vncbind-addr"]:checked');
-      finish(picked ? picked.value : null);
+      var picked = [];
+      root.querySelectorAll('input[name="vncbind-addr"]:checked').forEach(function (el) {
+        picked.push(el.value);
+      });
+      finish(picked);
     };
     cancel.onclick = function () { finish(null); };
     document.addEventListener('keydown', onKey);
@@ -228,8 +248,9 @@
             return;
           }
           var body = bodyString(opts.data);
-          ask(status, field(body, 'xmldesc'), function (addr) {
-            if (!addr) {
+          var xmlNow = field(body, 'xmldesc');
+          ask(status, xmlNow, domainName(body, xmlNow), function (addrs) {
+            if (!addrs) {
               releaseForm();
               deferred.reject();
               next();
@@ -246,7 +267,7 @@
                   deferred.reject();
                   next();
                 };
-                if (note) note.textContent = 'That address was refused. The save was not sent.';
+                if (note) note.textContent = 'Those addresses were refused. The save was not sent.';
                 refused.querySelector('.vncbind-ask-ok').hidden = true;
                 function onEsc(ev) {
                   if (ev.key === 'Escape') dismiss();
@@ -285,7 +306,7 @@
                   finish(data);
                   return;
                 }
-                post(REWRITE, { csrf_token: csrf(), domain: name, addr: addr }, function (rewritten) {
+                post(REWRITE, { csrf_token: csrf(), domain: name, addr: addrs }, function (rewritten) {
                   if (!rewritten || !rewritten.ok) data = { error: 'The listen address was not saved.' };
                   finish(data);
                 });
@@ -301,7 +322,7 @@
               send(body);
               return;
             }
-            post(REWRITE, { csrf_token: csrf(), xml: xml, addr: addr }, function (rewritten) {
+            post(REWRITE, { csrf_token: csrf(), xml: xml, addr: addrs }, function (rewritten) {
               if (!rewritten || !rewritten.ok || typeof rewritten.xml !== 'string') {
                 send(null);
                 return;
