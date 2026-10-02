@@ -44,6 +44,11 @@ echo "VncBind: ready."
 </FILE>
 
 <!-- raw-files begin -->
+<FILE Name="&configdir;/VncBind-&version;-x86_64-1.txz" Run="upgradepkg --install-new --reinstall">
+<URL>https://github.com/ibigsnet/VncBind/releases/download/v&version;/VncBind-&version;-x86_64-1.txz</URL>
+<SHA256>1f89a93f98e60fbf86ffd1a29668f593077d46b6ee1b56aa0098633bb7b47b63</SHA256>
+<MD5>91a7ca686443d10ebee049a82a386dc2</MD5>
+</FILE>
 <!-- raw-files end -->
 
 <FILE Run="/bin/bash">
@@ -64,3 +69,5 @@ echo "VncBind: removed."
 exit 0
 ]]></INLINE>
 </FILE>
+
+</PLUGIN>
