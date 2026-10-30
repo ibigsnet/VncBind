@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "VncBind">
 <!ENTITY author "RifleJock">
-<!ENTITY version "2026.10.01af">
+<!ENTITY version "2026.10.30aa">
 <!ENTITY launch "Settings/Utilities/VncBind">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
 <!ENTITY github "ibigsnet/VncBind">
@@ -24,6 +24,10 @@
 
 <CHANGES>
 ###&version;
+- VM saves keep their VNC password. A saved listen on every interface is corrected right after libvirt saves it, and XML view saves open the checked addresses.
+- The five-minute alert check runs again (Unraid cron). Forwarding follows the current interface settings. Uninstall moves each VM to its first checked address.
+
+###2026.10.01af
 - Open each checked VNC address. A checked interface is offered, including one outside Interface Extra.
 
 ###2026.10.01ad
@@ -43,7 +47,8 @@
 <INLINE><![CDATA[
 echo "VncBind: preparing..."
 mkdir -p /boot/config/plugins/VncBind
-chmod 700 /boot/config/plugins/VncBind 2>/dev/null || true
+# Older versions wrote a cron file dcron could not run.
+rm -f /etc/cron.d/vncbind
 rm -rf /usr/local/emhttp/plugins/vncbind 2>/dev/null || true
 echo "VncBind: ready."
 ]]></INLINE>
@@ -52,14 +57,15 @@ echo "VncBind: ready."
 <!-- raw-files begin -->
 <FILE Name="&configdir;/VncBind-&version;-x86_64-1.txz" Run="upgradepkg --install-new --reinstall">
 <URL>https://github.com/ibigsnet/VncBind/releases/download/v&version;/VncBind-&version;-x86_64-1.txz</URL>
-<SHA256>f1131c2f31ca437554dc78133389c7c5087d4fddcccbf2138dc549cdb88eb40c</SHA256>
-<MD5>43a285ab15389566aad387b2c0ee0915</MD5>
+<SHA256>e030151932b2483de0a34e56f08382fefe98f1de9797944da17323a35ec631ee</SHA256>
+<MD5>d93a54a3a3b5e9cac7f9c72baca83b52</MD5>
 </FILE>
 <!-- raw-files end -->
 
 <FILE Run="/bin/bash">
 <INLINE><![CDATA[
-php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_apply_schedule(); vncbind_listen_spawn(); vncbind_alert();' || true
+# Restart the daemon so an upgrade runs the new code; it waits for libvirt by itself.
+php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_listen_stop(); vncbind_apply_schedule(); vncbind_listen_spawn();' || true
 ]]></INLINE>
 </FILE>
 
@@ -68,10 +74,19 @@ php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vnc
 #!/bin/bash
 set +e
 echo "VncBind: removing..."
-php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_listen_stop();' || true
-removepkg VncBind-* >/dev/null 2>&1
+LIB=/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php
+if [ -f "$LIB" ]; then
+  # Each VM on the local console address moves to its first checked address
+  # (never every interface), then the forwarder stops.
+  php -r 'require $argv[1]; foreach (vncbind_restore_all() as $l) { echo "VncBind: $l\n"; } vncbind_listen_stop();' "$LIB" || true
+fi
+rm -f /boot/config/plugins/VncBind/vncbind.cron /etc/cron.d/vncbind
+[ -x /usr/local/sbin/update_cron ] && /usr/local/sbin/update_cron
+for p in /var/log/packages/VncBind-*; do
+  [ -e "$p" ] || continue
+  removepkg "$(basename "$p")" >/dev/null 2>&1
+done
 rm -rf /usr/local/emhttp/plugins/VncBind /usr/local/emhttp/plugins/vncbind
-rm -f /etc/cron.d/vncbind
 echo "VncBind: removed."
 exit 0
 ]]></INLINE>

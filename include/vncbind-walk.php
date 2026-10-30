@@ -3,12 +3,10 @@ require_once __DIR__ . '/vncbind-lib.php';
 
 if (PHP_SAPI === 'cli') {
     $mode = $argv[1] ?? '';
-    if ($mode === 'alert') {
-        vncbind_alert();
-    } else {
+    if ($mode !== 'alert') {
         vncbind_walk();
-        vncbind_alert();
     }
+    vncbind_alert();
     exit(0);
 }
 
@@ -19,7 +17,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !vncbind_csrf_ok()) {
     exit;
 }
 
-vncbind_walk();
+$rows = vncbind_walk();
 vncbind_alert();
-header('Location: /Settings/Utilities/VncBind?checked=1', true, 303);
+header('Location: /Settings/Utilities/VncBind?' . ($rows === null ? 'err=libvirt' : 'checked=1'), true, 303);
 exit;

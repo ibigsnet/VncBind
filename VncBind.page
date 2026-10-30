@@ -29,6 +29,11 @@ if ($err === 'check') {
 } elseif ($err === 'save') {
     $err_text = 'Could not write the config file.';
 }
+if (!class_exists('DOMDocument')) {
+    $err_text = 'PHP DOM is missing on this server. VNC Bind cannot read or change VM definitions.';
+} elseif ($err === 'libvirt') {
+    $err_text = 'Libvirt did not answer. Start the VM service and check again.';
+}
 ?>
 <?php if ($err_text !== ''): ?>
 <p class="vncbind-err"><?= htmlspecialchars($err_text) ?></p>
@@ -50,6 +55,18 @@ if ($err === 'check') {
 </dl>
 <blockquote class="inline_help">
   Enable asks which addresses to open before a VM with VNC is created or updated. Disable leaves the save alone.
+</blockquote>
+<dl>
+  <dt>Correct saved VMs:</dt>
+  <dd>
+    <select name="enforce">
+      <?= mk_option($cfg['enforce'], 'yes', 'Yes') ?>
+      <?= mk_option($cfg['enforce'], 'no', 'No') ?>
+    </select>
+  </dd>
+</dl>
+<blockquote class="inline_help">
+  Yes changes a saved VNC listen on every interface to the local console address as soon as libvirt saves it. A VM already running keeps its socket until restart.
 </blockquote>
 <dl>
   <dt>Use Interface Extra:</dt>

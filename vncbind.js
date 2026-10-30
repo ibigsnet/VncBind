@@ -229,19 +229,58 @@
     });
   }
 
+  /* A promise that also answers the jqXHR calls callers use, so a held VM save
+     still behaves like an $.ajax result (abort, status, responseText). */
+  function heldXhr(deferred) {
+    var held = { real: null, aborted: false };
+    var xhr = deferred.promise({
+      readyState: 0,
+      status: 0,
+      statusText: '',
+      responseText: '',
+      abort: function (text) {
+        held.aborted = true;
+        if (held.real) held.real.abort(text);
+        else deferred.reject(xhr, text || 'abort', text || 'abort');
+        return xhr;
+      },
+      setRequestHeader: function () { return xhr; },
+      getAllResponseHeaders: function () { return held.real ? held.real.getAllResponseHeaders() : ''; },
+      getResponseHeader: function (k) { return held.real ? held.real.getResponseHeader(k) : null; },
+      overrideMimeType: function () { return xhr; }
+    });
+    xhr.attach = function (real) {
+      held.real = real;
+      real.always(function () {
+        xhr.readyState = real.readyState;
+        xhr.status = real.status;
+        xhr.statusText = real.statusText;
+        xhr.responseText = real.responseText;
+        xhr.responseJSON = real.responseJSON;
+      });
+    };
+    xhr.isAborted = function () { return held.aborted; };
+    return xhr;
+  }
+
   function installAjax() {
     var $ = window.jQuery;
     if (!$ || $._vncbind) return;
+    // Only the VM pages send VM saves; leave $.ajax alone everywhere else.
+    if (!/^\/VMs(\/|$)/.test(location.pathname)) return;
     var real = $.ajax;
     $.ajax = function (url, options) {
       var single = url && typeof url === 'object';
       var opts = single ? url : $.extend({}, options, { url: url });
       if (!isVncSave(opts)) return real.apply(this, arguments);
       var deferred = $.Deferred();
+      var xhr = heldXhr(deferred);
       enqueue(function (next) {
+        if (xhr.isAborted()) { next(); return; }
         loadStatus(function (status) {
           if (!status || status.interjection !== 'yes') {
             var passed = real.call($, opts);
+            xhr.attach(passed);
             passed.done(function () { deferred.resolveWith(this, arguments); });
             passed.fail(function () { deferred.rejectWith(this, arguments); });
             next();
@@ -316,7 +355,7 @@
                 deferred.reject(jqXHR, textStatus, err);
                 next();
               };
-              real.call($, opts);
+              xhr.attach(real.call($, opts));
             };
             if (!xml) {
               send(body);
@@ -332,7 +371,7 @@
           });
         });
       });
-      return deferred.promise();
+      return xhr;
     };
     $._vncbind = 1;
   }

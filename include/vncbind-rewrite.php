@@ -28,7 +28,17 @@ if ($addrs === null || !vncbind_addrs_ok($cfg, $addrs)) {
 }
 
 if ($xml !== '') {
-    echo json_encode(['ok' => true, 'xml' => vncbind_rewrite_xml($xml, vncbind_console_addr())], JSON_UNESCAPED_SLASHES);
+    // XML view: rewrite before VM Manager saves it, and remember the addresses.
+    $out = vncbind_rewrite_xml($xml, vncbind_console_addr());
+    $name = vncbind_xml_name($xml);
+    $uuid = vncbind_xml_uuid($xml);
+    if ($out === null || $name === '' || !vncbind_set_binds($uuid, $name, $addrs)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false]);
+        exit;
+    }
+    vncbind_listen_poke();
+    echo json_encode(['ok' => true, 'xml' => $out], JSON_UNESCAPED_SLASHES);
     exit;
 }
 
