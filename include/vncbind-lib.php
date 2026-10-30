@@ -8,7 +8,10 @@ if (!defined('VNCBIND_ROOT')) {
     define('VNCBIND_SUGGEST', VNCBIND_CFG . '/suggestions.json');
     define('VNCBIND_ALERTS', VNCBIND_CFG . '/alerts.json');
     define('VNCBIND_BINDS', VNCBIND_CFG . '/binds.json');
-    define('VNCBIND_CRONFILE', VNCBIND_CFG . '/vncbind.cron');
+    // update_cron reads /boot/config/plugins/<plg name>/*.cron: lowercase vncbind/
+    // (case matters on a ZFS boot device; same folder on FAT).
+    define('VNCBIND_CRONFILE', VNCBIND_ROOT . '/boot/config/plugins/vncbind/vncbind.cron');
+    define('VNCBIND_CRONFILE_LEGACY', VNCBIND_CFG . '/vncbind.cron');
     define('VNCBIND_EXTRA', VNCBIND_ROOT . '/boot/config/network-extra.cfg');
     define('VNCBIND_OLD_CRON', VNCBIND_ROOT . '/etc/cron.d/vncbind');
     define('VNCBIND_CRON_ROOT', VNCBIND_ROOT . '/etc/cron.d/root');
@@ -934,7 +937,13 @@ function vncbind_apply_schedule(?array $cfg = null): void {
             $changed = true;
         }
     } else {
+        @mkdir(dirname(VNCBIND_CRONFILE), 0755, true);
         $changed = vncbind_write_if_changed(VNCBIND_CRONFILE, $text) === true;
+    }
+    $legacy = VNCBIND_CRONFILE_LEGACY;
+    if (is_file($legacy) && !(is_file(VNCBIND_CRONFILE) && @fileinode($legacy) === @fileinode(VNCBIND_CRONFILE))) {
+        @unlink($legacy);
+        $changed = true;
     }
     $merged = (string)@file_get_contents(VNCBIND_CRON_ROOT);
     $present = str_contains($merged, VNCBIND_WALK);

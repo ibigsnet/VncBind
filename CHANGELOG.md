@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.10.30ab
+
+- **Alert schedule on every boot device.** The cron file moved to `/boot/config/plugins/vncbind/` and
+  `update_cron` runs again a minute after install. Unraid's `update_cron` reads `/boot/config/plugins/<plugin>/*.cron` only for plugins that have finished installing, and the folder name is case-sensitive on a ZFS boot device. Before, the five-minute check could be
+  missing after a fresh install or on a ZFS boot device.
+
 ## 2026.10.30aa
 
 - VM saves keep their VNC password. Definitions are read with `--security-info`; before, a form-view save through VNC Bind dropped the password, and alerts always reported "no password".
