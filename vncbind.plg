@@ -4,9 +4,9 @@
 <!ENTITY author "RifleJock">
 <!ENTITY version "2026.10.30ab">
 <!ENTITY launch "Settings/Utilities/VncBind">
-<!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/main/vncbind.plg">
 <!ENTITY github "ibigsnet/VncBind">
-<!ENTITY raw "https://raw.githubusercontent.com/ibigsnet/VncBind/testing">
+<!ENTITY raw "https://raw.githubusercontent.com/ibigsnet/VncBind/main">
 <!ENTITY plugdir "/usr/local/emhttp/plugins/VncBind">
 <!ENTITY configdir "/boot/config/plugins/VncBind">
 ]>
@@ -20,7 +20,7 @@
   min="6.12.0"
   support="https://github.com/ibigsnet/VncBind/issues"
   project="https://github.com/&github;"
-  readme="https://raw.githubusercontent.com/&github;/testing/README.md">
+  readme="https://raw.githubusercontent.com/&github;/main/README.md">
 
 <CHANGES>
 ###&version;
