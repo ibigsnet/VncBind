@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.11.01aa
+
+- **The old alert schedule stops at once.** Versions before 2026.10.30aa wrote `/etc/cron.d/vncbind`,
+  which Unraid's cron could not run (exit status 127 in the system log every five minutes). Updating
+  removed the file, but cron keeps a removed file loaded until it is told or until its hourly rescan,
+  so the errors went on for up to an hour. The update, the settings page and uninstall now tell cron
+  through `/etc/cron.d/cron.update`.
+- **Old package files are removed from the flash drive** after an update, as the other ibigsnet
+  plugins do. Earlier updates left every previous `VncBind-*.txz` in `/boot/config/plugins/VncBind/`.
+- **The install log ends with "install complete".** After `upgradepkg` the install printed nothing,
+  so it looked stuck. It now checks the package landed, lists the installed package and says when it is done.
+
 ## 2026.10.30ab
 
 - **Alert schedule on every boot device.** The cron file moved to `/boot/config/plugins/vncbind/` and

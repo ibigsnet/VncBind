@@ -927,8 +927,7 @@ function vncbind_cron_text(array $cfg): string {
 
 function vncbind_apply_schedule(?array $cfg = null): void {
     $cfg = $cfg ?? vncbind_load_cfg();
-    // Versions before 2026.10.30aa wrote a file dcron could not run.
-    @unlink(VNCBIND_OLD_CRON);
+    vncbind_drop_old_cron();
     $text = vncbind_cron_text($cfg);
     $changed = false;
     if ($text === '') {
@@ -949,6 +948,16 @@ function vncbind_apply_schedule(?array $cfg = null): void {
     $present = str_contains($merged, VNCBIND_WALK);
     if ($changed || $present !== ($text !== '')) {
         vncbind_update_cron();
+    }
+}
+
+/**
+ * Versions before 2026.10.30aa wrote /etc/cron.d/vncbind, which dcron could not run. crond keeps a
+ * deleted file loaded until cron.update names it.
+ */
+function vncbind_drop_old_cron(): void {
+    if (is_file(VNCBIND_OLD_CRON) && @unlink(VNCBIND_OLD_CRON)) {
+        @file_put_contents(dirname(VNCBIND_OLD_CRON) . '/cron.update', basename(VNCBIND_OLD_CRON) . "\n", FILE_APPEND);
     }
 }
 
