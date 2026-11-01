@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "VncBind">
 <!ENTITY author "RifleJock">
-<!ENTITY version "2026.10.30ab">
+<!ENTITY version "2026.11.01aa">
 <!ENTITY launch "Settings/Utilities/VncBind">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
 <!ENTITY github "ibigsnet/VncBind">
@@ -24,6 +24,9 @@
 
 <CHANGES>
 ###&version;
+- The five-minute check from versions before 2026.10.30aa stops right after the update (it kept failing in the system log for up to an hour). Old package files are removed from the flash drive, and the install log ends with "install complete" like the other plugins.
+
+###2026.10.30ab
 - VM saves keep their VNC password. A saved listen on every interface is corrected right after libvirt saves it, and XML view saves open the checked addresses.
 - The five-minute alert check runs again (Unraid cron, any boot device). Forwarding follows the current interface settings. Uninstall moves each VM to its first checked address.
 
@@ -47,8 +50,9 @@
 <INLINE><![CDATA[
 echo "VncBind: preparing..."
 mkdir -p /boot/config/plugins/VncBind
-# Older versions wrote a cron file dcron could not run.
+# Older versions wrote a cron file dcron could not run; crond forgets a deleted file only when told.
 rm -f /etc/cron.d/vncbind
+[ -d /etc/cron.d ] && echo vncbind >> /etc/cron.d/cron.update
 rm -rf /usr/local/emhttp/plugins/vncbind 2>/dev/null || true
 echo "VncBind: ready."
 ]]></INLINE>
@@ -57,17 +61,28 @@ echo "VncBind: ready."
 <!-- raw-files begin -->
 <FILE Name="&configdir;/VncBind-&version;-x86_64-1.txz" Run="upgradepkg --install-new --reinstall">
 <URL>https://github.com/ibigsnet/VncBind/releases/download/v&version;/VncBind-&version;-x86_64-1.txz</URL>
-<SHA256>b55cf9ba1e8ed45aef843ce9477ee554d97b25ce8f75498a65a8566aa6caa74e</SHA256>
-<MD5>89805b928bf7307136b9333801f8437f</MD5>
+<SHA256>9bd16e2d94c6f64d8b561b587e0d707e8b1ac6e97d40e81855d7784de525c0d3</SHA256>
+<MD5>f2093adaf2394762b90fce82e14e773b</MD5>
 </FILE>
 <!-- raw-files end -->
 
 <FILE Run="/bin/bash">
+<INLINE>find &configdir; -maxdepth 1 -name "&name;-*-x86_64-1.txz" ! -name "&name;-&version;-x86_64-1.txz" -delete 2>/dev/null || true</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash">
 <INLINE><![CDATA[
+echo "VncBind: finishing install..."
+if [ ! -f /usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php ]; then
+  echo "VncBind: ERROR - package did not install (missing vncbind-lib.php)"
+  exit 1
+fi
 # Restart the daemon so an upgrade runs the new code; it waits for libvirt by itself.
 php -r 'require "/usr/local/emhttp/plugins/VncBind/include/vncbind-lib.php"; vncbind_listen_stop(); vncbind_apply_schedule(); vncbind_listen_spawn();' || true
 # update_cron only reads registered plugins; this one registers after the script.
 [ -x /usr/local/sbin/update_cron ] && { echo /usr/local/sbin/update_cron | at -M now + 1 minute >/dev/null 2>&1 || true; }
+echo "VncBind: packages now: $(ls /var/log/packages/VncBind-* 2>/dev/null | xargs -n1 basename 2>/dev/null | tr '\n' ' ')"
+echo "VncBind: install complete. Hard-refresh the browser (Ctrl+Shift+R)."
 ]]></INLINE>
 </FILE>
 
@@ -83,6 +98,7 @@ if [ -f "$LIB" ]; then
   php -r 'require $argv[1]; foreach (vncbind_restore_all() as $l) { echo "VncBind: $l\n"; } vncbind_listen_stop();' "$LIB" || true
 fi
 rm -f /boot/config/plugins/VncBind/vncbind.cron /boot/config/plugins/vncbind/vncbind.cron /etc/cron.d/vncbind
+[ -d /etc/cron.d ] && echo vncbind >> /etc/cron.d/cron.update
 rmdir /boot/config/plugins/vncbind 2>/dev/null || true
 [ -x /usr/local/sbin/update_cron ] && /usr/local/sbin/update_cron
 for p in /var/log/packages/VncBind-*; do
