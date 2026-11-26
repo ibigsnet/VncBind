@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "VncBind">
 <!ENTITY author "RifleJock">
-<!ENTITY version "2026.11.01aa">
+<!ENTITY version "2026.11.26aa">
 <!ENTITY launch "Settings/Utilities/VncBind">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ibigsnet/VncBind/testing/vncbind.plg">
 <!ENTITY github "ibigsnet/VncBind">
@@ -24,6 +24,9 @@
 
 <CHANGES>
 ###&version;
+- Apply and Check now on the settings page work. Both answered "Forbidden", and the VM page could not save a listen address, because the plugin looked for the form token after Unraid had checked and removed it.
+
+###2026.11.01aa
 - The five-minute check from versions before 2026.10.30aa stops right after the update (it kept failing in the system log for up to an hour). Old package files are removed from the flash drive, and the install log ends with "install complete" like the other plugins.
 
 ###2026.10.30ab
@@ -38,9 +41,6 @@
 
 ###2026.10.01ab
 - Notify when this host has a public address and a VM VNC listen address is every interface.
-
-###2026.10.01aa
-- Ask which interface a VM VNC listen address uses before the template is saved.
 
 ### Older releases
 - Full changelog: https://github.com/ibigsnet/VncBind/blob/main/CHANGELOG.md
@@ -61,8 +61,8 @@ echo "VncBind: ready."
 <!-- raw-files begin -->
 <FILE Name="&configdir;/VncBind-&version;-x86_64-1.txz" Run="upgradepkg --install-new --reinstall">
 <URL>https://github.com/ibigsnet/VncBind/releases/download/v&version;/VncBind-&version;-x86_64-1.txz</URL>
-<SHA256>9bd16e2d94c6f64d8b561b587e0d707e8b1ac6e97d40e81855d7784de525c0d3</SHA256>
-<MD5>f2093adaf2394762b90fce82e14e773b</MD5>
+<SHA256>b0eba7edddd17708f4a580fd818fcbf88f3ade20b1ffe50f205eb92006b6bfbe</SHA256>
+<MD5>4dd34338798b69315d18078bb54ddf2d</MD5>
 </FILE>
 <!-- raw-files end -->
 
