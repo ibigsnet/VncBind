@@ -2,7 +2,7 @@
 
 VNC Bind keeps each VM's saved VNC listen on the local console address and forwards only the addresses that were checked.
 
-- State changes are POST with the Unraid `csrf_token` only. The status endpoint is read-only.
+- State changes are POST with the Unraid `csrf_token` only. Unraid checks the token before plugin code runs. The status endpoint is read-only.
 - A checked address must be an interface address on this host that the current settings allow. `0.0.0.0` and `::` are refused and never written.
 - The forwarder re-checks the allowed addresses on every plan change; an address that is no longer allowed is closed.
 - Each listener forwards to the VM console address and port from the running definition. It does not accept on an address of its own choosing.

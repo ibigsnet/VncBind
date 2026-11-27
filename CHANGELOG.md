@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.11.26aa
+
+- **Apply and Check now work.** Both buttons on the settings page answered `Forbidden`, and on the VM
+  page a chosen listen address was refused. Unraid checks the form token on every POST and then removes
+  it from the request; the plugin looked for it again afterwards and never found it. The plugin now
+  accepts a POST that has passed Unraid's check. A wrong or missing token is still refused, by Unraid.
+- Found on Unraid 7.3.4 and reproduced on 7.4.0. Tested on 7.4.0: Apply, Check now, the alert check
+  and both ways of saving a VM listen address answer as they should.
+
 ## 2026.11.01aa
 
 - **The old alert schedule stops at once.** Versions before 2026.10.30aa wrote `/etc/cron.d/vncbind`,

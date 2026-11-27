@@ -41,7 +41,15 @@ function vncbind_csrf_submitted(): string {
     return '';
 }
 
+/**
+ * Unraid's local_prepend.php checks the token on every POST before plugin code runs, then removes it
+ * from $_POST and from the X-CSRF-TOKEN header. It cannot be compared a second time here: a POST that
+ * reaches this point has passed that check. Without the prepend (command-line tests) compare it here.
+ */
 function vncbind_csrf_ok(): bool {
+    if (function_exists('csrf_terminate')) {
+        return true;
+    }
     $expected = vncbind_csrf_expected();
     $got = vncbind_csrf_submitted();
     return $expected !== '' && strlen($expected) === strlen($got) && hash_equals($expected, $got);
